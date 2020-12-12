@@ -24,10 +24,16 @@ stack_top:
 
     .section .boot.text, "ax"
     .global _start_early
+    .global MULTIBOOT_INFO_ADDR
+    MULTIBOOT_INFO_ADDR:
+        .long 0
     .type _start_early, @function
 _start_early:
+
+    mov %ebx, MULTIBOOT_INFO_ADDR
+
     # Bootstrap stack.
-	mov $stack_top, %esp
+    mov $stack_top, %esp
 
     call setup_paging_early
 
@@ -48,7 +54,7 @@ _start_early:
     mov $(stack_top + KERNEL_HIGH), %esp
     mov $(stack_top + KERNEL_HIGH), %ebp
 
-	mov $kernel_main, %eax
+    mov $kernel_main, %eax
     jmp *%eax
 
 .size _start_early, . - _start_early

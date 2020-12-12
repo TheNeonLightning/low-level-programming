@@ -14,24 +14,27 @@
 #include "pci.h"
 #include "ata.h"
 
-void kernel_main(void) {
-    init_gdt();
-    init_idt();
+void kernel_main() {
+  init_gdt();
+  init_idt();
 
-    init_kalloc_early();
-    init_kernel_paging();
+  init_kalloc_early();
+  init_kernel_paging();
 
-    terminal_initialize();
+  terminal_initialize();
 
-    struct acpi_sdt* rsdt = acpi_find_rsdt();
-    if (!rsdt) {
-        panic("RSDT not found!");
-    }
+  struct acpi_sdt *rsdt = acpi_find_rsdt();
+  if (!rsdt) {
+    panic("RSDT not found!");
+  }
 
-    apic_init(rsdt);
-    //ata_init();
+  apic_init(rsdt);
+  // ata_init();
 
-    printk("Hell OS is loaded\n");
+  fill_memory_map();
+  print_memory_map();
 
-    scheduler_start();
+  printk("\nHell OS is loaded\n");
+
+  scheduler_start();
 }

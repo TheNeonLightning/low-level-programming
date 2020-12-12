@@ -1,0 +1,5 @@
+irq.S.o: irq.S
+syscall.S.o: syscall.S
+sched.S.o: sched.S
+boot.S.o: boot.S defs.h
+gdt.S.o: gdt.S

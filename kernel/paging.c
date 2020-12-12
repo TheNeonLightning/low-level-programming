@@ -130,3 +130,65 @@ void pagefault_irq(struct regs* regs) {
         panic("pagefault in kernel space\n    cr2=0x%x, eip=0x%x, err_code=%d", addr, regs->eip, regs->error_code);
     }
 }
+
+static struct memory_map_section MEMORY_MAP[32];
+uint32_t memory_map_section_counter = 0;
+
+
+
+void fill_memory_map() {
+
+  identity_map((void*) &MULTIBOOT_INFO_ADDR, sizeof(multiboot_info_t));
+  multiboot_info_t* mboot_header = (multiboot_info_t *)MULTIBOOT_INFO_ADDR;
+  identity_map((void*) &mboot_header->mmap_addr, sizeof(multiboot_memory_map_t));
+
+  unsigned long cur_addr = mboot_header->mmap_addr;
+  unsigned long end_addr = cur_addr + mboot_header->mmap_length;
+
+  while (cur_addr < end_addr && memory_map_section_counter < 32) {
+    multiboot_memory_map_t* cur_entry = (multiboot_memory_map_t*)cur_addr;
+
+    struct memory_map_section cur_section;
+    cur_section.addr = cur_entry->addr;
+    cur_section.len  = cur_entry->len;
+    cur_section.type = cur_entry->type;
+
+    MEMORY_MAP[memory_map_section_counter] = cur_section;
+    ++memory_map_section_counter;
+
+    // it seems like multiboot_memory_map_t.size does not represent the actual
+    // size of the structure, so will use sizeof instead
+    cur_addr += sizeof(multiboot_memory_map_t);
+  }
+}
+
+void print_memory_map() {
+
+  printk("____________________________\n"
+         "BASE ADDRESS | LENGTH | TYPE\n"
+         "----------------------------\n");
+
+  for (int index = 0; index < memory_map_section_counter; ++index) {
+    printk("0x%x | %u | ", MEMORY_MAP[index].addr, MEMORY_MAP[index].len);
+
+    switch(MEMORY_MAP[index].type) {
+    case 1:
+      printk("AVAILABLE\n");
+      break;
+    case 2:
+      printk("RESERVED\n");
+      break;
+    case 3:
+      printk("ACPI RECLAIMABLE\n");
+      break;
+    case 4:
+      printk("NVS\n");
+      break;
+    case 5:
+      printk("BADRAM\n");
+      break;
+    }
+  }
+
+  printk("----------------------------\n");
+}
