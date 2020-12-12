@@ -1,8 +1,48 @@
-#include "irq.h"
-#include "vga.h"
+#include "keyboard.h"
+
+int keyboard_getc(void) {
+  static unsigned int shift;
+  static unsigned char* charcode[4] = {
+      normalmap, shiftmap, ctlmap, ctlmap
+  };
+  unsigned int st, data, c;
+
+  st = inb(KBSTATP);
+  if((st & KBS_DIB) == 0)
+    return -1;
+  data = inb(KBDATAP);
+
+  if(data == 0xE0){
+    shift |= E0ESC;
+    return 0;
+  } else if(data & 0x80){
+    // Key released
+    data = (shift & E0ESC ? data : data & 0x7F);
+    shift &= ~(shiftcode[data] | E0ESC);
+    return 0;
+  } else if(shift & E0ESC){
+    // Last character was an E0 escape; or with 0x80
+    data |= 0x80;
+    shift &= ~E0ESC;
+  }
+
+  shift |= shiftcode[data];
+  shift ^= togglecode[data];
+  c = charcode[shift & (CTL | SHIFT)][data];
+  if(shift & CAPSLOCK){
+    if('a' <= c && c <= 'z')
+      c += 'A' - 'a';
+    else if('A' <= c && c <= 'Z')
+      c += 'a' - 'A';
+  }
+  return c;
+}
 
 void keyboard_irq(struct regs* regs) {
-    (void)regs;
-    printk("pepega");
-    apic_eoi();
+  (void) regs;
+  int keyboard_msg = keyboard_getc();
+  if (keyboard_msg != 0) {
+    printf("%c", keyboard_msg);
+  }
+  apic_eoi();
 }
