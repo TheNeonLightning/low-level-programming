@@ -12,10 +12,10 @@
 .long FLAGS
 .long CHECKSUM
 
-    .section .boot.bss, "aw", @nobits
-    .align 16
+.section .boot.bss, "aw", @nobits
+.align 16
 stack_bottom:
-    .skip 4096
+.skip 4096
 stack_top:
 
 .extern kernel_main
