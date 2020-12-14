@@ -1,5 +1,5 @@
 AS=gcc -m32 -c -g -mgeneral-regs-only
-CC=gcc -m32 -g -mgeneral-regs-only -mno-red-zone -std=gnu99 -ffreestanding -fno-pie -Wall -Wextra -static-libgcc -O2
+CC=gcc -m32 -g -mgeneral-regs-only -mno-red-zone -std=gnu99 -ffreestanding -fno-pie -Wall -Wextra -static-libgcc -O0
 LD=gcc -m32 -fno-pic -Wl,-static -Wl,-Bsymbolic -nostartfiles
 OBJCOPY=objcopy
 SHELL := /bin/bash
@@ -16,7 +16,7 @@ image: build
 	rm -rf isodir
 
 build: .c-depend .S-depend $(C_OBJS) $(ASM_OBJS) linker.ld
-	$(LD) -T <(cpp -P -E linker.ld) -o kernel.bin -ffreestanding -O2 -nostdlib -lgcc $(ASM_OBJS) $(C_OBJS)
+	$(LD) -T <(cpp -P -E linker.ld) -o kernel.bin -ffreestanding -O1 -nostdlib -lgcc $(ASM_OBJS) $(C_OBJS)
 	$(OBJCOPY) --only-keep-debug kernel.bin kernel.sym
 	$(OBJCOPY) --strip-debug kernel.bin
 

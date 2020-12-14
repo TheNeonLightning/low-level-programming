@@ -20,7 +20,7 @@ struct kalloc_head kalloc_head;
 __attribute__((section(".boot.text"))) void setup_paging_early() {
     // 0x0...4Mb identity mapped
     // KERNEL_HIGH...KERNEL_HIGH+4Mb mapped to 0x0...4Mb
-    early_pgdir[0] = PT_PRESENT | PT_WRITEABLE | PT_PAGE_SIZE;
+    early_pgdir[0] = PT_PRESENT | PT_WRITEABLE | PT_PAGE_SIZE; // (0) | ...
     early_pgdir[PGDIR_IDX(KERNEL_HIGH)] = PT_PRESENT | PT_WRITEABLE | PT_PAGE_SIZE;
 }
 
@@ -74,7 +74,7 @@ uint32_t* alloc_page(uint32_t* pgdir, void* addr, int user) {
     return &page_table[PT_IDX(addr)];
 }
 
-void map_continous(uint32_t* pgdir, void* addr, size_t size, void* phys_addr, int flags) {
+void map_continuous(uint32_t* pgdir, void* addr, size_t size, void* phys_addr, int flags) {
     addr = (void*)ROUNDDOWN((uint32_t)addr);
     phys_addr = (void*)ROUNDDOWN((uint32_t)phys_addr);
     size = ROUNDUP(size);
@@ -101,15 +101,16 @@ void load_cr3(uint32_t* pgdir) {
 }
 
 void init_kernel_paging() {
-    kernel_pgdir = kalloc();
-    memset(kernel_pgdir, '\0', PAGE_SIZE);
-    map_continous(kernel_pgdir, (void*)KERNEL_HIGH, 4 * (1 << 20), 0x0, PT_WRITEABLE);
-    map_continous(kernel_pgdir, &USERSPACE_START, 4096, virt2phys(&USERSPACE_START), PT_USER | PT_WRITEABLE);
-    load_cr3(virt2phys(kernel_pgdir));
+  kernel_pgdir = kalloc();
+  memset(kernel_pgdir, '\0', PAGE_SIZE);
+  extend_phys_memory_mapping();
+  //map_continuous(kernel_pgdir, (void*)KERNEL_HIGH, 4 * (1 << 20), 0x0, PT_WRITEABLE);
+  //map_continuous(kernel_pgdir, &USERSPACE_START, 4096, virt2phys(&USERSPACE_START), PT_USER | PT_WRITEABLE);
+  //load_cr3(virt2phys(kernel_pgdir));
 }
 
 void identity_map(void* addr, size_t sz) {
-    map_continous(kernel_pgdir, addr, sz, addr, PT_WRITEABLE);
+    map_continuous(kernel_pgdir, addr, sz, addr, PT_WRITEABLE);
 }
 
 uint32_t read_cr2() {
@@ -134,13 +135,9 @@ void pagefault_irq(struct regs* regs) {
 static struct memory_map_section MEMORY_MAP[32];
 uint32_t memory_map_section_counter = 0;
 
-
-
 void fill_memory_map() {
 
-  identity_map((void*) &MULTIBOOT_INFO_ADDR, sizeof(multiboot_info_t));
   multiboot_info_t* mboot_header = (multiboot_info_t *)MULTIBOOT_INFO_ADDR;
-  identity_map((void*) &mboot_header->mmap_addr, sizeof(multiboot_memory_map_t));
 
   unsigned long cur_addr = mboot_header->mmap_addr;
   unsigned long end_addr = cur_addr + mboot_header->mmap_length;
@@ -191,4 +188,87 @@ void print_memory_map() {
   }
 
   printk("----------------------------\n");
+}
+
+void map_continuous_large_page(uint32_t* pgdir, void* addr, size_t size,
+                               void* phys_addr, int flags) {
+
+  addr = (void*)LARGE_ROUNDDOWN((uint32_t)addr);
+  phys_addr = (void*)LARGE_ROUNDDOWN((uint32_t)phys_addr);
+  size = LARGE_ROUNDUP(size);
+
+  while (size > 0) {
+    pgdir[PGDIR_IDX(addr)] = ((uint32_t )phys_addr) | PT_PRESENT |
+        PT_WRITEABLE | PT_PAGE_SIZE;
+
+    addr += LARGE_PAGE_SIZE;
+    phys_addr += LARGE_PAGE_SIZE;
+    size -= LARGE_PAGE_SIZE;
+  }
+}
+
+void extend_phys_memory_mapping() {
+
+  if (memory_map_section_counter == 0) {
+    return;
+  }
+
+  uint32_t section_addr = 0, section_len = 0;
+
+  for (int index = 0; index < memory_map_section_counter; ++index) {
+    if (MEMORY_MAP[index].type == MULTIBOOT_MEMORY_AVAILABLE &&
+        MEMORY_MAP[index].addr != 0) {
+
+      section_addr = MEMORY_MAP[index].addr;
+      section_len  = MEMORY_MAP[index].len;
+      break;
+
+    }
+  }
+
+  uint32_t map_size = (uint32_t)LARGE_ROUNDDOWN(section_addr + section_len);
+  uint32_t available_virtual_memory = (uint32_t)LARGE_ROUNDDOWN(UINT32_MAX - KERNEL_HIGH);
+  available_virtual_memory -= 4 * LARGE_PAGE_SIZE;
+  if (available_virtual_memory < map_size) {
+    map_size = available_virtual_memory;
+  }
+
+  map_continuous_large_page(kernel_pgdir, (void*)KERNEL_HIGH, map_size, 0x0, PT_WRITEABLE);
+
+  load_cr3(virt2phys(kernel_pgdir));
+
+  uint32_t kalloc_size = map_size - LARGE_PAGE_SIZE;
+  uint32_t available_kalloc_space = (uint32_t)LARGE_ROUNDDOWN(UINT32_MAX - (uint32_t)&KERNEL_END);
+  available_kalloc_space -= 4 * LARGE_PAGE_SIZE;
+  if (available_kalloc_space < map_size) {
+    kalloc_size = available_kalloc_space;
+  }
+
+  void* addr = (void*)LARGE_ROUNDUP((uint32_t)&KERNEL_END);
+  void* end = addr + kalloc_size;
+  while (addr < end) {
+    struct fl_entry *entry = (struct fl_entry *)addr;
+    entry->next = kalloc_head.freelist_head;
+    kalloc_head.freelist_head = entry;
+    addr += PAGE_SIZE;
+  }
+}
+
+void extend_mapping_test() {
+
+  printk("Testing extended mapping of available physical memory:\n");
+  printk("First kalloc(), value 11:\n");
+  uint32_t* test = kalloc();
+  test[5] = 11;
+  printk("value - %d, ", test[5]);
+  printk("virt. addr. - %u, ", test);
+  printk("phys. addr. - %u.\n", virt2phys(test));
+
+  printk("Next kalloc(), value 10:\n");
+  test = kalloc();
+  test[5] = 10;
+  printk("value - %d, ", test[5]);
+  printk("virt. addr. - %u, ", test);
+  printk("phys. addr. - %u.\n", virt2phys(test));
+
 }

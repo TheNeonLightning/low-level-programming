@@ -17,6 +17,9 @@
 #define ROUNDUP(addr) ((void*)(((uint32_t)(addr) + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)))
 #define ROUNDDOWN(addr) ((void*)((uint32_t)(addr) & ~(PAGE_SIZE - 1)))
 
+#define LARGE_ROUNDUP(addr) ((void*)(((uint32_t)(addr) + LARGE_PAGE_SIZE - 1) & ~(LARGE_PAGE_SIZE - 1)))
+#define LARGE_ROUNDDOWN(addr) ((void*)((uint32_t)(addr) & ~(LARGE_PAGE_SIZE - 1)))
+
 extern char KERNEL_END[];
 extern char KERNEL_START[];
 extern char USERSPACE_START[];
@@ -51,3 +54,10 @@ void identity_map(void* addr, size_t sz);
 void fill_memory_map();
 
 void print_memory_map();
+
+void extend_phys_memory_mapping();
+
+void extend_mapping_test();
+
+void map_continuous_large_page(uint32_t* pgdir, void* addr, size_t size,
+                               void* phys_addr, int flags);

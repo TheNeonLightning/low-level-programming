@@ -18,10 +18,13 @@ void kernel_main() {
   init_gdt();
   init_idt();
 
+  fill_memory_map();
+
   init_kalloc_early();
   init_kernel_paging();
 
   terminal_initialize();
+  print_memory_map();
 
   struct acpi_sdt *rsdt = acpi_find_rsdt();
   if (!rsdt) {
@@ -31,8 +34,7 @@ void kernel_main() {
   apic_init(rsdt);
   // ata_init();
 
-  fill_memory_map();
-  print_memory_map();
+  extend_mapping_test();
 
   printk("\nHell OS is loaded\n");
 

@@ -10,7 +10,7 @@ __switch_to:
     mov     %ebx, 16(%eax)
 
     mov     8(%esp), %eax
-    mov     0(%eax), %esp
+    mov     0(%eax), %esp # crash here if map_continuous_large_page is incorrect
     mov     4(%eax), %ebp
     mov     8(%eax), %esi
     mov     12(%eax), %edi

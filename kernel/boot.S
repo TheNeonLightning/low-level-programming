@@ -22,12 +22,12 @@ stack_top:
 .extern setup_paging_early
 .extern early_pgdir
 
-    .section .boot.text, "ax"
-    .global _start_early
-    .global MULTIBOOT_INFO_ADDR
-    MULTIBOOT_INFO_ADDR:
-        .long 0
-    .type _start_early, @function
+.section .boot.text, "ax"
+.global _start_early
+.global MULTIBOOT_INFO_ADDR
+MULTIBOOT_INFO_ADDR:
+    .long 0
+.type _start_early, @function
 _start_early:
 
     mov %ebx, MULTIBOOT_INFO_ADDR
