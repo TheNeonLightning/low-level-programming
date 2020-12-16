@@ -61,3 +61,9 @@ void extend_mapping_test();
 
 void map_continuous_large_page(uint32_t* pgdir, void* addr, size_t size,
                                void* phys_addr, int flags);
+
+void copy_kernel_section(uint32_t* pgdir);
+
+void* kalloc_s(size_t size);
+
+void* mmap(void* addr, size_t size, int flags, uint32_t* pgdir);

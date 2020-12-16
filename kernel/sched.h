@@ -18,12 +18,23 @@ struct context {
     uint32_t ebx;
 };
 
+struct mapped_mem {
+  struct mapped_mem* next;
+  uint32_t addr;
+  size_t size;
+};
+
 struct task {
     int pid;
     state_t state;
     struct context context;
     struct regs* regs;
     void* kstack;
+
+    uint32_t* pgdir;
+    struct mapped_mem* mapped_mem_list;
+    size_t list_size;
+
     int ticks_remaining;
     int exitcode;
 };

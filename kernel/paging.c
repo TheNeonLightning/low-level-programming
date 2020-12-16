@@ -52,7 +52,7 @@ void kfree(void* p) {
     // ...
 }
 
-uint32_t* alloc_page(uint32_t* pgdir, void* addr, int user) {
+uint32_t* alloc_page(uint32_t* pgdir, void* addr, /*int user,*/ int fl) {
     uint32_t* page_table = NULL;
     if (pgdir[PGDIR_IDX(addr)] & PT_PRESENT) {
         page_table = phys2virt((void*)ROUNDDOWN(pgdir[PGDIR_IDX(addr)]));
@@ -67,8 +67,8 @@ uint32_t* alloc_page(uint32_t* pgdir, void* addr, int user) {
     }
 
     int flags = PT_PRESENT;
-    if (user) {
-        flags |= PT_USER;
+    if (fl) {
+        flags |= fl;
     }
     pgdir[PGDIR_IDX(addr)] = ((uint32_t)virt2phys(page_table)) | flags;
     return &page_table[PT_IDX(addr)];
@@ -130,6 +130,7 @@ void pagefault_irq(struct regs* regs) {
     if (!is_userspace(regs)) {
         panic("pagefault in kernel space\n    cr2=0x%x, eip=0x%x, err_code=%d", addr, regs->eip, regs->error_code);
     }
+    printk("%u ", addr);
 }
 
 static struct memory_map_section MEMORY_MAP[32];
@@ -198,8 +199,7 @@ void map_continuous_large_page(uint32_t* pgdir, void* addr, size_t size,
   size = LARGE_ROUNDUP(size);
 
   while (size > 0) {
-    pgdir[PGDIR_IDX(addr)] = ((uint32_t )phys_addr) | PT_PRESENT |
-        PT_WRITEABLE | PT_PAGE_SIZE;
+    pgdir[PGDIR_IDX(addr)] = ((uint32_t )phys_addr) | PT_PRESENT | PT_PAGE_SIZE | flags;
 
     addr += LARGE_PAGE_SIZE;
     phys_addr += LARGE_PAGE_SIZE;
@@ -233,7 +233,7 @@ void extend_phys_memory_mapping() {
     map_size = available_virtual_memory;
   }
 
-  map_continuous_large_page(kernel_pgdir, (void*)KERNEL_HIGH, map_size, 0x0, PT_WRITEABLE);
+  map_continuous_large_page(kernel_pgdir, (void*)KERNEL_HIGH, map_size, 0x0, PT_WRITEABLE | PT_USER);
 
   load_cr3(virt2phys(kernel_pgdir));
 
@@ -271,4 +271,28 @@ void extend_mapping_test() {
   printk("virt. addr. - %u, ", test);
   printk("phys. addr. - %u.\n", virt2phys(test));
 
+}
+
+void copy_kernel_section(uint32_t* pgdir) {
+  memset(pgdir, 0, 512 * sizeof(uint32_t));
+  for (uint32_t i = 512; i < 1024; ++i) {
+    pgdir[i] = kernel_pgdir[i];
+  }
+}
+
+void* kalloc_s(size_t size) {
+  size = ROUNDUP(size);
+  struct fl_entry* entry = kalloc_head.freelist_head;
+  for (uint32_t index = 1; index < size / PAGE_SIZE; ++index) {
+    entry = entry->next;
+  }
+  void* ptr = (void*)kalloc_head.freelist_head;
+  kalloc_head.freelist_head = entry->next;
+  return ptr;
+}
+
+void* mmap(void* addr, size_t size, int flags, uint32_t* pgdir) {
+  void* k_addr = kalloc_s(size);
+  map_continuous(pgdir, addr, size, virt2phys(k_addr), flags);
+  return addr;
 }

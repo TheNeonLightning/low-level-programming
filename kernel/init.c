@@ -6,5 +6,5 @@
 #include <stdint.h>
 
 void init_late() {
-    init_ext2();
+    //init_ext2();
 }
